@@ -7,13 +7,14 @@ public class BlazorGameStorage : IGameStorage
 {
     public IServiceProvider? AspNetCoreServices { get; set; }
 
-    private ILocalStorageService? LocalStorageService => this.AspNetCoreServices?.GetService<ILocalStorageService>();
+    private ISyncLocalStorageService? ISyncLocalStorageService => this.AspNetCoreServices?.GetService<ISyncLocalStorageService>();
 
     public IEnumerable<IEntity> ReadEntities()
     {
-        if (this.LocalStorageService is null) yield break;
+        if (this.ISyncLocalStorageService is null) yield break;
 
-        var entities = this.LocalStorageService.GetItemAsync<IEntity[]>("Entities").GetAwaiter().GetResult();
+        var entities = this.ISyncLocalStorageService.GetItem<List<IEntity>>("Entities");
+       // return entities;
         foreach (var entity in entities)
         {
             yield return entity;

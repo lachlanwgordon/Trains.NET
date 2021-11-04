@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using Trains.NET.Instrumentation;
 
@@ -66,7 +67,10 @@ public class GameBoard : IGameBoard
             entities = _storage?.ReadEntities();
             terrain = _storage?.ReadTerrain();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to load \n{ex}\n{ex.StackTrace}");
+        }
         if (entities is not null)
         {
             tracks = entities.OfType<IStaticEntity>();
