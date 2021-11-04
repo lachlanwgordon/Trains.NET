@@ -7,13 +7,13 @@ public class BlazorGameStorage : IGameStorage
 {
     public IServiceProvider? AspNetCoreServices { get; set; }
 
-    private ISyncLocalStorageService? ISyncLocalStorageService => this.AspNetCoreServices?.GetService<ISyncLocalStorageService>();
+    private ISyncLocalStorageService? LocalStorageService => this.AspNetCoreServices?.GetService<ISyncLocalStorageService>();
 
     public IEnumerable<IEntity> ReadEntities()
     {
-        if (this.ISyncLocalStorageService is null) yield break;
+        if (this.LocalStorageService is null) yield break;
 
-        var entities = this.ISyncLocalStorageService.GetItem<List<IEntity>>("Entities");
+        var entities = this.LocalStorageService.GetItem<List<IEntity>>("Entities");
        // return entities;
         foreach (var entity in entities)
         {
@@ -25,7 +25,7 @@ public class BlazorGameStorage : IGameStorage
     {
         if (this.LocalStorageService is null) yield break;
 
-        var terrainList = this.LocalStorageService.GetItemAsync<Terrain[]>("Terrain").GetAwaiter().GetResult();
+        var terrainList = this.LocalStorageService.GetItem<Terrain[]>("Terrain");
         foreach (var terrain in terrainList)
         {
             yield return terrain;
@@ -36,13 +36,13 @@ public class BlazorGameStorage : IGameStorage
     {
         if (this.LocalStorageService is null) return;
 
-        _ = this.LocalStorageService.SetItemAsync("Entities", entities.ToArray());
+        _ = this.LocalStorageService.SetItem("Entities", entities.ToArray());
     }
 
     public void WriteTerrain(IEnumerable<Terrain> terrainList)
     {
         if (this.LocalStorageService is null) return;
 
-        _ = this.LocalStorageService.SetItemAsync("Terrain", terrainList.ToArray());
+        _ = this.LocalStorageService.SetItem("Terrain", terrainList.ToArray());
     }
 }

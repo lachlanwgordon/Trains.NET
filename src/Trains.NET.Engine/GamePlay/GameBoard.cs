@@ -356,6 +356,11 @@ public class GameBoard : IGameBoard
     public void Dispose()
     {
         _gameLoopTimer?.Dispose();
+        Save();
+    }
+
+    public void Save()
+    {
         if (_storage is not null)
         {
             _storage.WriteEntities(GetAllEntities());
