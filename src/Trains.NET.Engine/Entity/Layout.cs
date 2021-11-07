@@ -2,20 +2,32 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Trains.NET.Engine;
 
-public class Layout : ILayout
+public class Layout : ILayout, IInitializeAsync, IGameState, IGameStep
 {
     public event EventHandler? CollectionChanged;
 
     private readonly object _gate = new object();
-    private readonly IStaticEntity?[][] _entities;
+    private readonly IEntityCollectionSerializer _gameSerializer;
+    private IStaticEntity?[][] _entities = null!;
+    private int _rows;
 
-    public Layout()
+    public Layout(IEntityCollectionSerializer gameSerializer)
     {
-        _entities = new IStaticEntity[200][];
+        _gameSerializer = gameSerializer;
+    }
+
+    public Task InitializeAsync(int columns, int rows)
+    {
+        _entities = new IStaticEntity[columns][];
+        _rows = rows;
         ResetArrays();
+
+        return Task.CompletedTask;
     }
 
     public void Set(int column, int row, IStaticEntity entity)
@@ -85,18 +97,6 @@ public class Layout : ILayout
         CollectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void Set(IEnumerable<IStaticEntity> tracks)
-    {
-        ResetArrays();
-
-        foreach (IStaticEntity track in tracks)
-        {
-            StoreEntity(track.Column, track.Row, track);
-        }
-
-        CollectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
     public void RaiseCollectionChanged()
     {
         CollectionChanged?.Invoke(this, EventArgs.Empty);
@@ -134,29 +134,23 @@ public class Layout : ILayout
         return staticEntity == null || staticEntity is T;
     }
 
-    public void Clear()
-    {
-        ResetArrays();
-
-        CollectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
     private void ResetArrays()
     {
         lock (_gate)
         {
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < _entities.Length; i++)
             {
-                _entities[i] = new IStaticEntity?[200];
+                _entities[i] = new IStaticEntity?[_rows];
             }
         }
     }
 
     public IEnumerator<IStaticEntity> GetEnumerator()
     {
-        for (int i = 0; i < 200; i++)
+        if (_entities == null) yield break;
+        for (int i = 0; i < _entities.Length; i++)
         {
-            for (int j = 0; j < 200; j++)
+            for (int j = 0; j < _rows; j++)
             {
                 var track = _entities[i][j];
                 if (track is not null)
@@ -170,5 +164,51 @@ public class Layout : ILayout
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    public bool Load(IGameStorage storage)
+    {
+        var entitiesString = storage.Read(nameof(ILayout));
+        if (entitiesString is null)
+            return false;
+
+        var entities = _gameSerializer.Deserialize(entitiesString);
+
+        var staticEntites = entities.OfType<IStaticEntity>();
+
+        if (staticEntites is null)
+            return false;
+
+        ResetArrays();
+
+        foreach (IStaticEntity entity in staticEntites)
+        {
+            StoreEntity(entity.Column, entity.Row, entity);
+        }
+
+        CollectionChanged?.Invoke(this, EventArgs.Empty);
+
+        return true;
+    }
+
+    public void Save(IGameStorage storage)
+    {
+        var entities = _gameSerializer.Serialize(this);
+        storage.Write(nameof(ILayout), entities);
+    }
+
+    void IGameState.Reset()
+    {
+        ResetArrays();
+
+        CollectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Update(long timeSinceLastTick)
+    {
+        foreach (IUpdatableEntity entity in this.OfType<IUpdatableEntity>())
+        {
+            entity.Update();
+        }
     }
 }

@@ -1,4 +1,7 @@
-﻿using Trains.NET.Engine;
+﻿using System.Linq;
+using System.Threading.Tasks;
+using Trains.NET.Engine;
+using Trains.NET.Engine.Storage;
 using Xunit;
 
 namespace Trains.NET.Tests;
@@ -49,9 +52,10 @@ public class TrackNeighborsTests
     [InlineData(true, true, false, true)]
     [InlineData(true, true, true, false)]
     [InlineData(true, true, true, true)]
-    public void GetAllNeighbors(bool left, bool up, bool right, bool down)
+    public async Task GetAllNeighbors(bool left, bool up, bool right, bool down)
     {
-        var layout = new Layout();
+        var layout = new Layout(new EntityCollectionSerializer(Enumerable.Empty<IEntitySerializer>()));
+        await layout.InitializeAsync(100, 100);
         layout.AddTrack(5, 5);
 
         int expected = 0;

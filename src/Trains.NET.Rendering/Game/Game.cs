@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Trains.NET.Engine;
 using Trains.NET.Instrumentation;
 
@@ -14,6 +15,7 @@ public class Game : IGame
     private int _screenWidth;
     private int _screenHeight;
     private readonly IGameBoard _gameBoard;
+    private readonly ITrainManager _trainManager;
     private readonly IEnumerable<ILayerRenderer> _boardRenderers;
     private readonly IPixelMapper _pixelMapper;
     private readonly IImageFactory _imageFactory;
@@ -24,21 +26,25 @@ public class Game : IGame
     private readonly Dictionary<ILayerRenderer, ElapsedMillisecondsTimedStat> _renderCacheDrawTimes;
     private readonly IEnumerable<IScreen> _screens;
     private readonly IImageCache _imageCache;
+    private readonly IEnumerable<IInitializeAsync> _initializers;
 
     public Game(IGameBoard gameBoard,
+                ITrainManager trainManager,
                 IEnumerable<ILayerRenderer> boardRenderers,
                 IPixelMapper pixelMapper,
                 IImageFactory imageFactory,
                 IEnumerable<IScreen> screens,
-                IImageCache imageCache)
+                IImageCache imageCache,
+                IEnumerable<IInitializeAsync> initializers)
     {
         _gameBoard = gameBoard;
+        _trainManager = trainManager;
         _boardRenderers = boardRenderers;
         _pixelMapper = pixelMapper;
         _imageFactory = imageFactory;
         _screens = screens;
         _imageCache = imageCache;
-
+        _initializers = initializers;
         foreach (IScreen screen in _screens)
         {
             screen.Changed += (s, e) => _imageCache.SetDirty(screen);
@@ -52,8 +58,14 @@ public class Game : IGame
         _screenDrawTimes = _screens.ToDictionary(x => x, x => InstrumentationBag.Add<ElapsedMillisecondsTimedStat>(GetLayerDiagnosticsName(x)));
         _renderCacheDrawTimes = _boardRenderers.Where(x => x is ICachableLayerRenderer).ToDictionary(x => x, x => InstrumentationBag.Add<ElapsedMillisecondsTimedStat>("Draw-Cache-" + x.Name.Replace(" ", "")));
         _pixelMapper.ViewPortChanged += (s, e) => _imageCache.SetDirtyAll(_boardRenderers);
+    }
 
-        _gameBoard.Initialize(_pixelMapper.Columns, _pixelMapper.Rows);
+    public async Task InitializeAsync(int columns, int rows)
+    {
+        foreach (var initializer in _initializers)
+        {
+            await initializer.InitializeAsync(columns, rows);
+        }
     }
 
     private static string GetLayerDiagnosticsName(ILayerRenderer layerRenderer)
@@ -89,10 +101,6 @@ public class Game : IGame
         if (_width != width || _height != height)
         {
             _pixelMapper.SetViewPortSize(width, height);
-            if (_width == 0)
-            {
-                _pixelMapper.SetViewPort((_pixelMapper.MaxGridWidth - width) / 2, (_pixelMapper.MaxGridHeight - height) / 2);
-            }
             _width = width;
             _height = height;
 
@@ -197,35 +205,17 @@ public class Game : IGame
     {
         if (!_gameBoard.Enabled) return;
 
-        foreach (IMovable vehicle in _gameBoard.GetMovables())
+        if (!_trainManager.TryGetFollowTrainPosition(out int col, out int row)) return;
+
+        (int x, int y, _) = _pixelMapper.CoordsToViewPortPixels(col, row);
+
+        double easing = 10;
+        int adjustX = Convert.ToInt32(((_pixelMapper.ViewPortWidth / 2) - x) / easing);
+        int adjustY = Convert.ToInt32(((_pixelMapper.ViewPortHeight / 2) - y) / easing);
+
+        if (adjustX != 0 || adjustY != 0)
         {
-            if (vehicle is Train { Follow: true } train)
-            {
-                int col, row;
-                if (train.Carriages == 0)
-                {
-                    col = train.Column;
-                    row = train.Row;
-                }
-                else
-                {
-                    var locomotivePosition = _gameBoard.GetNextSteps(train, train.Carriages).Last();
-                    col = locomotivePosition.Column;
-                    row = locomotivePosition.Row;
-                }
-
-                (int x, int y, _) = _pixelMapper.CoordsToViewPortPixels(col, row);
-
-                double easing = 10;
-                int adjustX = Convert.ToInt32(((_pixelMapper.ViewPortWidth / 2) - x) / easing);
-                int adjustY = Convert.ToInt32(((_pixelMapper.ViewPortHeight / 2) - y) / easing);
-
-                if (adjustX != 0 || adjustY != 0)
-                {
-                    _pixelMapper.AdjustViewPort(adjustX, adjustY);
-                }
-                break;
-            }
+            _pixelMapper.AdjustViewPort(adjustX, adjustY);
         }
     }
 

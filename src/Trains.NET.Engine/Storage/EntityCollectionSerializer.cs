@@ -4,21 +4,21 @@ using System.Text;
 
 namespace Trains.NET.Engine.Storage;
 
-public class GameSerializer : IEntityCollectionSerializer
+public class EntityCollectionSerializer : IEntityCollectionSerializer
 {
     private readonly IEnumerable<IEntitySerializer> _serializers;
 
-    public GameSerializer(IEnumerable<IEntitySerializer> serializer)
+    public EntityCollectionSerializer(IEnumerable<IEntitySerializer> serializer)
     {
         _serializers = serializer;
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
-    public IEnumerable<IEntity> Deserialize(string[] lines)
+    public IEnumerable<IEntity> Deserialize(string lines)
     {
         List<IEntity> entities = new();
 
-        foreach (var line in lines)
+        foreach (var line in lines.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
         {
             string[] bits = line.Split('|', 3);
             foreach (var serializer in _serializers)

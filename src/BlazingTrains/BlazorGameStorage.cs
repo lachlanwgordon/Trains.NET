@@ -1,5 +1,4 @@
-﻿using Blazored.LocalStorage;
-using Trains.NET.Engine;
+﻿using Trains.NET.Engine;
 
 namespace BlazingTrains;
 
@@ -9,7 +8,7 @@ public class BlazorGameStorage : IGameStorage
 
     private ISyncLocalStorageService? LocalStorageService => this.AspNetCoreServices?.GetService<ISyncLocalStorageService>();
 
-    public IEnumerable<IEntity> ReadEntities()
+    public string? Read(string key)
     {
         if (this.LocalStorageService is null) yield break;
 
@@ -30,9 +29,10 @@ public class BlazorGameStorage : IGameStorage
         {
             yield return terrain;
         }
+        return null;
     }
 
-    public void WriteEntities(IEnumerable<IEntity> entities)
+    public void Write(string key, string value)
     {
         if (this.LocalStorageService is null) return;
 

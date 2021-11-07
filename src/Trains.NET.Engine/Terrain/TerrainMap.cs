@@ -2,18 +2,29 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Threading.Tasks;
 
 namespace Trains.NET.Engine;
 
-public class TerrainMap : ITerrainMap
+public class TerrainMap : ITerrainMap, IInitializeAsync, IGameState
 {
     private ImmutableDictionary<(int, int), Terrain> _terrainMap = ImmutableDictionary<(int, int), Terrain>.Empty;
+    private int _columns;
+    private int _rows;
+    private readonly Random _newSeedRandom = new();
+
+    private int _seed;
 
     public event EventHandler? CollectionChanged;
 
-    public void Reset(int seed, int columns, int rows)
+    void IGameState.Reset()
+        => Reset(null);
+
+    public void Reset(int? seed)
     {
-        Dictionary<(int x, int y), float>? noiseMap = NoiseGenerator.GenerateNoiseMap(columns, rows, 4, seed);
+        _seed = seed ?? _newSeedRandom.Next();
+
+        Dictionary<(int x, int y), float>? noiseMap = NoiseGenerator.GenerateNoiseMap(_columns, _rows, 4, _seed);
 
         ImmutableDictionary<(int, int), Terrain>.Builder builder = ImmutableDictionary.CreateBuilder<(int, int), Terrain>();
         foreach ((int x, int y) coord in noiseMap.Keys)
@@ -30,12 +41,6 @@ public class TerrainMap : ITerrainMap
         CollectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void Set(IEnumerable<Terrain> terrainList)
-    {
-        _terrainMap = terrainList.ToImmutableDictionary(t => (t.Column, t.Row));
-        CollectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
     public IEnumerator<Terrain> GetEnumerator()
     {
         return _terrainMap.Values.GetEnumerator();
@@ -48,4 +53,30 @@ public class TerrainMap : ITerrainMap
 
     public Terrain Get(int column, int row)
         => _terrainMap[(column, row)];
+
+    public bool Load(IGameStorage storage)
+    {
+        var terrainSeed = storage.Read(nameof(TerrainMap));
+
+        if (int.TryParse(terrainSeed, out var seed))
+        {
+            Reset(seed);
+            return true;
+        }
+
+        return false;
+    }
+
+    public void Save(IGameStorage storage)
+    {
+        storage.Write(nameof(TerrainMap), _seed.ToString());
+    }
+
+    public Task InitializeAsync(int columns, int rows)
+    {
+        _columns = columns;
+        _rows = rows;
+
+        return Task.CompletedTask;
+    }
 }
